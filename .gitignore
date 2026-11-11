@@ -1,0 +1,15 @@
+# Maven
+target/
+dependency-reduced-pom.xml
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Runs of the driver (logs, audit files, HA data, generated compose files)
+run/
+runs/
