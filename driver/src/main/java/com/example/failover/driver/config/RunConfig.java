@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,11 +31,13 @@ public record RunConfig(
         Duration duration,
         int jobManagers,
         int taskManagers,
+        int parallelism,
         Duration tokenLifetime,
         double renewalRatio,
         Duration standbyAge,
         Duration failoverInterval,
         Duration settle,
+        String dropTokensOf,
         Path workDir,
         boolean keep,
         String runtimeImage,
@@ -42,6 +45,9 @@ public record RunConfig(
         String jobManagerMemory,
         String taskManagerMemory,
         int restPortBase) {
+
+    /** The slots of each TaskManager, so the job fills every TaskManager by default. */
+    public static final int SLOTS_PER_TASK_MANAGER = 2;
 
     public static final String USAGE =
             String.join(
@@ -53,14 +59,23 @@ public record RunConfig(
                     "  --scenario <name>         aged-standby (default), rolling, zk-blip",
                     "  --duration <d>            how long 'rolling' keeps failing over, e.g. 30m (default 10m)",
                     "  --job-managers <n>        default 3",
-                    "  --task-managers <n>       default 2",
+                    "  --task-managers <n>       default 2, each has "
+                            + SLOTS_PER_TASK_MANAGER
+                            + " slots",
+                    "  --parallelism <n>         parallelism of the job, default: all slots, so that every",
+                    "                            TaskManager runs a part of the job and uses the file system",
                     "  --token-lifetime <d>      lifetime of a mock token, default 30s",
                     "  --renewal-ratio <r>       security.delegation.tokens.renewal.time-ratio, default 0.5",
                     "  --standby-age <d>         standbys must be up this long before the leader is killed,",
                     "                            default 2 x lifetime + 10s",
                     "  --failover-interval <d>   'rolling': time between two failovers, default 90s",
                     "  --settle <d>              how long the cluster is watched after a failover (no process",
-                    "                            may exit, the job must keep checkpointing), default 15s",
+                    "                            may exit, every TaskManager must get tokens and use the file",
+                    "                            system, the job must keep checkpointing), default: token",
+                    "                            lifetime + renewal period, so longer than a token lives",
+                    "  --drop-tokens-of <name>   fault injection: from the start of each failover the process",
+                    "                            (for example tm1) drops every token update it receives. The",
+                    "                            run is expected to FAIL, which shows that the checks notice",
                     "  --work-dir <dir>          where runs are created, default ./runs",
                     "  --keep                    leave the containers and the run directory in place",
                     "  --runtime-image <image>   default eclipse-temurin:17-jre",
@@ -87,12 +102,19 @@ public record RunConfig(
         if (home == null) {
             throw new IllegalArgumentException("--flink-home is required");
         }
+        final int taskManagers = Integer.parseInt(options.getOrDefault("--task-managers", "2"));
         final Duration tokenLifetime =
                 parseDuration(options.getOrDefault("--token-lifetime", "30s"));
+        final double renewalRatio =
+                Double.parseDouble(options.getOrDefault("--renewal-ratio", "0.5"));
         final Duration standbyAge =
                 options.containsKey("--standby-age")
                         ? parseDuration(options.get("--standby-age"))
                         : tokenLifetime.multipliedBy(2).plusSeconds(10);
+        final Duration settle =
+                options.containsKey("--settle")
+                        ? parseDuration(options.get("--settle"))
+                        : tokenLifetime.plus(renewalPeriod(tokenLifetime, renewalRatio));
 
         final RunConfig config =
                 new RunConfig(
@@ -101,12 +123,16 @@ public record RunConfig(
                         options.getOrDefault("--scenario", "aged-standby"),
                         parseDuration(options.getOrDefault("--duration", "10m")),
                         Integer.parseInt(options.getOrDefault("--job-managers", "3")),
-                        Integer.parseInt(options.getOrDefault("--task-managers", "2")),
+                        taskManagers,
+                        options.containsKey("--parallelism")
+                                ? Integer.parseInt(options.get("--parallelism"))
+                                : taskManagers * SLOTS_PER_TASK_MANAGER,
                         tokenLifetime,
-                        Double.parseDouble(options.getOrDefault("--renewal-ratio", "0.5")),
+                        renewalRatio,
                         standbyAge,
                         parseDuration(options.getOrDefault("--failover-interval", "90s")),
-                        parseDuration(options.getOrDefault("--settle", "15s")),
+                        settle,
+                        options.getOrDefault("--drop-tokens-of", ""),
                         Paths.get(options.getOrDefault("--work-dir", "runs"))
                                 .toAbsolutePath()
                                 .normalize(),
@@ -133,16 +159,41 @@ public record RunConfig(
         if (taskManagers < 1) {
             throw new IllegalArgumentException("At least one TaskManager is needed");
         }
+        if (parallelism < 1 || parallelism > taskManagers * SLOTS_PER_TASK_MANAGER) {
+            throw new IllegalArgumentException(
+                    "The parallelism must be between 1 and "
+                            + taskManagers * SLOTS_PER_TASK_MANAGER
+                            + ", the number of slots");
+        }
         if (renewalRatio <= 0 || renewalRatio >= 1) {
             throw new IllegalArgumentException("The renewal ratio must be in (0, 1)");
+        }
+        if (!dropTokensOf.isEmpty() && !processNames().contains(dropTokensOf)) {
+            throw new IllegalArgumentException(
+                    "Unknown process: " + dropTokensOf + ", one of " + processNames());
         }
         if (!List.of("aged-standby", "rolling", "zk-blip").contains(scenario)) {
             throw new IllegalArgumentException("Unknown scenario: " + scenario);
         }
     }
 
+    private List<String> processNames() {
+        final List<String> names = new ArrayList<>();
+        for (int i = 1; i <= jobManagers; i++) {
+            names.add("jm" + i);
+        }
+        for (int i = 1; i <= taskManagers; i++) {
+            names.add("tm" + i);
+        }
+        return names;
+    }
+
     /** The time between two renewals of a healthy process. */
     public Duration renewalPeriod() {
+        return renewalPeriod(tokenLifetime, renewalRatio);
+    }
+
+    private static Duration renewalPeriod(Duration tokenLifetime, double renewalRatio) {
         return Duration.ofMillis(Math.round(tokenLifetime.toMillis() * renewalRatio));
     }
 

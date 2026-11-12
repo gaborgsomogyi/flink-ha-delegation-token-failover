@@ -105,6 +105,7 @@ public final class Scenarios {
         leader = cluster.awaitLeader(Set.of(), LEADER_TIMEOUT);
 
         final long killedAt = System.currentTimeMillis();
+        injectFault(cluster, config);
         cluster.kill(leader);
         final ProcessSpec newLeader = cluster.awaitLeader(Set.of(leader.name()), LEADER_TIMEOUT);
         final long leaderAt = System.currentTimeMillis();
@@ -137,6 +138,7 @@ public final class Scenarios {
         final int grantsBefore = cluster.totalLeadershipGrants();
 
         final long blipAt = System.currentTimeMillis();
+        injectFault(cluster, config);
         cluster.blinkZookeeper(Duration.ofSeconds(12));
         cluster.await(
                 "a new leadership grant after ZooKeeper came back",
@@ -170,15 +172,25 @@ public final class Scenarios {
     }
 
     /**
-     * Watches the cluster after a failover. A process which exits is a failure, and the job has to
-     * complete another checkpoint, which shows that it still runs and still reaches the file
-     * system.
+     * Watches the cluster after a failover for the settle time, which is longer than a token lives.
+     * A process which exits is a failure, and the watch is what the checks of the TaskManagers look
+     * at. After it the job has to complete another checkpoint, which shows that it still runs and
+     * still reaches the file system.
      */
     private static void settle(Cluster cluster, RunConfig config)
             throws ScenarioFailure, IOException, InterruptedException {
-        final int checkpoints = Math.max(0, cluster.completedCheckpoints());
         cluster.observe(config.settle());
+        // A checkpoint after the watch, not during it: by then the tokens which the old leader
+        // handed out are expired, so it proves that the job is supplied by the new leader.
+        final int checkpoints = Math.max(0, cluster.completedCheckpoints());
         cluster.awaitCheckpointsAbove(checkpoints, CHECKPOINT_TIMEOUT);
+    }
+
+    /** The fault injection of <code>--drop-tokens-of</code>, if there is one. */
+    private static void injectFault(Cluster cluster, RunConfig config) throws IOException {
+        if (!config.dropTokensOf().isEmpty()) {
+            cluster.dropTokensOf(config.dropTokensOf());
+        }
     }
 
     private static Map<String, Integer> threadCounts(Cluster cluster, ProcessSpec killed) {

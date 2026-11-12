@@ -60,6 +60,9 @@ public final class Cluster {
     private final Map<String, Long> openSince = new HashMap<>();
     private final Set<String> down = new HashSet<>();
 
+    private final List<Observation> observations = new ArrayList<>();
+    private long disturbedAt;
+
     private String jobId;
 
     public Cluster(RunConfig config, Workspace workspace, Docker docker) {
@@ -124,7 +127,16 @@ public final class Cluster {
         return all;
     }
 
+    /**
+     * Fault injection: from now on the process drops every token update it receives, as if the
+     * leader did not supply it with tokens. The plugin of the process watches for this file.
+     */
+    public void dropTokensOf(String process) throws IOException {
+        Files.writeString(workspace.auditDirectory().resolve("drop-tokens-" + process), "");
+    }
+
     public void kill(ProcessSpec process) throws IOException, InterruptedException {
+        disturbedAt = System.currentTimeMillis();
         docker.kill(process.container());
         down.add(process.name());
         closeIncarnation(process.name(), true);
@@ -139,6 +151,7 @@ public final class Cluster {
 
     /** Stops ZooKeeper for the given time, long enough for every session to expire. */
     public void blinkZookeeper(Duration offline) throws IOException, InterruptedException {
+        disturbedAt = System.currentTimeMillis();
         docker.stop(zookeeper.container());
         Thread.sleep(offline.toMillis());
         docker.start(zookeeper.container());
@@ -382,7 +395,10 @@ public final class Cluster {
                 () -> completedCheckpoints() > count ? Optional.of(true) : Optional.empty());
     }
 
-    /** Fails if a process which is not intentionally down exits during the given time. */
+    /**
+     * Fails if a process which is not intentionally down exits during the given time. The time
+     * since the last disturbance of the cluster is remembered as an {@link Observation}.
+     */
     public void observe(Duration time) throws ScenarioFailure, IOException, InterruptedException {
         final long end = System.currentTimeMillis() + time.toMillis();
         while (System.currentTimeMillis() < end) {
@@ -390,6 +406,12 @@ public final class Cluster {
             Thread.sleep(1_000);
         }
         assertNoUnexpectedExit();
+        observations.add(new Observation(disturbedAt, System.currentTimeMillis()));
+    }
+
+    /** Every watch which ended so far, also if a later step of the scenario failed. */
+    public List<Observation> observations() {
+        return List.copyOf(observations);
     }
 
     /** Waits until every standby has been up for the given time. */
@@ -440,7 +462,9 @@ public final class Cluster {
         final String jarId = filename.substring(filename.lastIndexOf('/') + 1);
         final Rest.Response started =
                 rest.postJson(
-                        leader.restHostPort(), "/jars/" + jarId + "/run", "{\"parallelism\":1}");
+                        leader.restHostPort(),
+                        "/jars/" + jarId + "/run",
+                        "{\"parallelism\":" + config.parallelism() + "}");
         if (!started.ok()) {
             throw new IOException(
                     leader.name() + " did not run " + jarId + ": " + started.describe());

@@ -168,6 +168,7 @@ public class TokenCheckedFileSystem extends FileSystem {
                             + expiredForMillis
                             + " ms");
         }
+        Audit.record("ACCESS", "op=" + operation + " path=" + path + " token=" + held.id());
     }
 
     private static Path toLocal(Path path) {

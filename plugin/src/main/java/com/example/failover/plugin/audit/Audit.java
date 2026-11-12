@@ -30,7 +30,8 @@ import java.nio.file.StandardOpenOption;
  *
  * <p>Line format: <code>epochMillis TAB process TAB EVENT TAB key=value key=value ...</code>.
  * Events: PROVIDER_INIT, RECEIVER_INIT, OBTAIN (provider produced a token), UPDATE (receiver was
- * handed a token), STALE (the held token is expired), VIOLATION (the file system rejected a call).
+ * handed a token), STALE (the held token is expired), VIOLATION (the file system rejected a call),
+ * ACCESS (the file system accepted a call, only written to the audit file, never to the log).
  *
  * <p>The directory and the process name come from the environment variables DTM_AUDIT_DIR and
  * DTM_PROCESS_NAME. Without them the audit is switched off and only the log is written.
@@ -82,9 +83,15 @@ public final class Audit {
         }
     }
 
+    /** Appends to the audit file and writes the log. */
     public static void log(String event, String details) {
-        final long now = System.currentTimeMillis();
         LOG.info("{} {}", event, details);
+        record(event, details);
+    }
+
+    /** Appends to the audit file only, for events which are too frequent for the log. */
+    public static void record(String event, String details) {
+        final long now = System.currentTimeMillis();
         synchronized (LOCK) {
             configureFromEnvironmentIfNeeded();
             if (auditFile == null) {

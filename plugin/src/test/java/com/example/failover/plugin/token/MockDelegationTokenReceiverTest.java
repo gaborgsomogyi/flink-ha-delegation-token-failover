@@ -67,4 +67,42 @@ class MockDelegationTokenReceiverTest {
         assertThat(audit.lines().get(0))
                 .endsWith("\tUPDATE\ttoken=jm2-4 issuedAt=10 validUntil=40");
     }
+
+    @Test
+    void receiverDropsTheTokensWhileTheDriverSwitchedTheirDeliveryOff() throws Exception {
+        final MockToken held = new MockToken("jm2-1", 10L, 40L);
+        new MockDelegationTokenReceiver().onNewTokensObtained(held.toBytes());
+        final File switchedOff =
+                new File(
+                        audit.directory(),
+                        MockDelegationTokenReceiver.DROP_TOKENS_FILE_PREFIX + AuditSandbox.PROCESS);
+        assertThat(switchedOff.createNewFile()).isTrue();
+
+        new MockDelegationTokenReceiver()
+                .onNewTokensObtained(new MockToken("jm2-2", 20L, 50L).toBytes());
+
+        assertThat(HeldToken.get()).isEqualTo(held);
+        assertThat(audit.lines().get(audit.lines().size() - 1))
+                .contains("\tUPDATE_DROPPED\t")
+                .contains("token=jm2-2");
+
+        assertThat(switchedOff.delete()).isTrue();
+        final MockToken renewed = new MockToken("jm2-3", 30L, 60L);
+        new MockDelegationTokenReceiver().onNewTokensObtained(renewed.toBytes());
+        assertThat(HeldToken.get()).isEqualTo(renewed);
+    }
+
+    @Test
+    void theSwitchOfAnotherProcessDoesNotMatter() throws Exception {
+        final File otherProcess =
+                new File(
+                        audit.directory(),
+                        MockDelegationTokenReceiver.DROP_TOKENS_FILE_PREFIX + "tm9");
+        assertThat(otherProcess.createNewFile()).isTrue();
+        final MockToken token = new MockToken("jm2-5", 10L, 40L);
+
+        new MockDelegationTokenReceiver().onNewTokensObtained(token.toBytes());
+
+        assertThat(HeldToken.get()).isEqualTo(token);
+    }
 }

@@ -19,11 +19,21 @@ import org.apache.flink.core.security.token.DelegationTokenReceiver;
 
 import com.example.failover.plugin.audit.Audit;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 /**
  * Receiver of the mock tokens, in the JobManager and in the TaskManager. It keeps the token in a
  * static field like the S3 receivers of Flink do, with no expiry handling, and audits every update.
  */
 public class MockDelegationTokenReceiver implements DelegationTokenReceiver {
+
+    /**
+     * Prefix of the name of the control file which makes the receiver of the process with the name
+     * that follows drop every token update, like a process which the new leader does not supply
+     * with tokens. The driver creates it next to the audit files.
+     */
+    static final String DROP_TOKENS_FILE_PREFIX = "drop-tokens-";
 
     @Override
     public String serviceName() {
@@ -39,6 +49,14 @@ public class MockDelegationTokenReceiver implements DelegationTokenReceiver {
     @Override
     public void onNewTokensObtained(byte[] tokens) {
         final MockToken token = MockToken.fromBytes(tokens);
+        if (dropsTokens()) {
+            Audit.log(
+                    "UPDATE_DROPPED",
+                    "token="
+                            + token.id()
+                            + " reason=the delivery of tokens to this process is switched off");
+            return;
+        }
         HeldToken.set(token);
         Audit.log(
                 "UPDATE",
@@ -48,5 +66,11 @@ public class MockDelegationTokenReceiver implements DelegationTokenReceiver {
                         + token.issuedAtMillis()
                         + " validUntil="
                         + token.validUntilMillis());
+    }
+
+    private static boolean dropsTokens() {
+        final Path directory = Audit.directory();
+        return directory != null
+                && Files.exists(directory.resolve(DROP_TOKENS_FILE_PREFIX + Audit.processName()));
     }
 }

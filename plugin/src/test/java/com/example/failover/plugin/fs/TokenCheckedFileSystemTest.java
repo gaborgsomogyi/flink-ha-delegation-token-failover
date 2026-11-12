@@ -91,7 +91,30 @@ class TokenCheckedFileSystemTest {
         assertThat(fileSystem.exists(file)).isFalse();
         assertThat(fileSystem.delete(renamed, false)).isTrue();
         assertThat(fileSystem.listStatus(dir)).isEmpty();
-        assertThat(audit.lines()).isEmpty();
+
+        // every accepted call is audited with the token that was used for it
+        assertThat(audit.lines())
+                .allSatisfy(
+                        line ->
+                                assertThat(line)
+                                        .contains("\ttest-process\tACCESS\t")
+                                        .contains("token=t-1"))
+                .extracting(TokenCheckedFileSystemTest::operationOf)
+                .containsExactly(
+                        "mkdirs",
+                        "create",
+                        "listStatus",
+                        "open",
+                        "getFileStatus",
+                        "rename",
+                        "getFileStatus",
+                        "delete",
+                        "listStatus");
+        assertThat(audit.lines().get(0)).endsWith("op=mkdirs path=" + dir + " token=t-1");
+    }
+
+    private static String operationOf(String auditLine) {
+        return auditLine.replaceAll(".*\\top=(\\S+) .*", "$1");
     }
 
     @Test
@@ -115,7 +138,7 @@ class TokenCheckedFileSystemTest {
         assertThatThrownBy(() -> fileSystem.rename(dir, dir)).isInstanceOf(IOException.class);
 
         final List<String> lines = audit.lines();
-        assertThat(lines).hasSize(7);
+        assertThat(lines).hasSize(7).allMatch(line -> line.contains("\tVIOLATION\t"));
         assertThat(lines.get(0))
                 .contains("\ttest-process\tVIOLATION\t")
                 .contains("op=listStatus")
@@ -151,6 +174,15 @@ class TokenCheckedFileSystemTest {
 
         assertThat(fileSystem.mkdirs(dir)).isTrue();
         assertThat(new File(tempDir, "ha")).isDirectory();
+
+        // the rejected call was audited with the old token, the accepted one with the new token
+        assertThat(audit.lines()).hasSize(3);
+        assertThat(audit.lines().get(0)).contains("\tVIOLATION\t").contains("token=t-old");
+        assertThat(audit.lines().get(1)).contains("\tUPDATE\t").contains("token=t-new");
+        assertThat(audit.lines().get(2))
+                .contains("\tACCESS\t")
+                .contains("op=mkdirs")
+                .contains("token=t-new");
     }
 
     @Test

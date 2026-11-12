@@ -16,11 +16,14 @@ package com.example.failover.driver;
 
 import com.example.failover.driver.client.Docker;
 import com.example.failover.driver.cluster.Cluster;
+import com.example.failover.driver.cluster.Observation;
 import com.example.failover.driver.config.RunConfig;
 import com.example.failover.driver.evidence.AuditEvent;
 import com.example.failover.driver.report.Report;
 import com.example.failover.driver.scenario.IterationResult;
 import com.example.failover.driver.scenario.Scenarios;
+import com.example.failover.driver.setup.ProcessSpec;
+import com.example.failover.driver.setup.Topology;
 import com.example.failover.driver.setup.Workspace;
 import com.example.failover.driver.verify.Checks;
 import com.example.failover.driver.verify.ScenarioFailure;
@@ -127,6 +130,24 @@ public final class Main {
                             "could not read the logs: " + e));
         }
         violations.addAll(Checks.tokenProblems(events));
+        final List<String> taskManagers = new ArrayList<>();
+        for (ProcessSpec taskManager : Topology.taskManagers(config)) {
+            taskManagers.add(taskManager.name());
+        }
+        for (Observation observation : cluster.observations()) {
+            violations.addAll(
+                    Checks.tokensDelivered(
+                            events,
+                            taskManagers,
+                            observation.startMillis(),
+                            observation.endMillis()));
+            violations.addAll(
+                    Checks.fileSystemUsed(
+                            events,
+                            taskManagers,
+                            observation.startMillis(),
+                            observation.endMillis()));
+        }
         if (scenarioCompleted) {
             violations.addAll(
                     Checks.updateCadence(
@@ -143,7 +164,8 @@ public final class Main {
                         iterations,
                         violations,
                         evidence,
-                        Checks.updatesPerProcess(events));
+                        Checks.updatesPerProcess(events),
+                        Checks.accessesPerProcess(events));
         System.out.println(report);
         try {
             Files.writeString(workspace.runDirectory().resolve("report.txt"), report);

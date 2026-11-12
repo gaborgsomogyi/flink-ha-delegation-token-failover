@@ -20,6 +20,7 @@ import com.example.failover.driver.evidence.LogLine;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -165,12 +166,89 @@ public final class Checks {
 
     /** Number of UPDATE events per process, for the report. */
     public static Map<String, Long> updatesPerProcess(List<AuditEvent> events) {
+        return countPerProcess(events, "UPDATE");
+    }
+
+    /** Number of ACCESS events (calls the file system accepted) per process, for the report. */
+    public static Map<String, Long> accessesPerProcess(List<AuditEvent> events) {
+        return countPerProcess(events, "ACCESS");
+    }
+
+    private static Map<String, Long> countPerProcess(List<AuditEvent> events, String eventName) {
         final Map<String, Long> counts = new LinkedHashMap<>();
         for (AuditEvent event : events) {
-            if (event.is("UPDATE")) {
+            if (event.is(eventName)) {
                 counts.merge(event.process(), 1L, Long::sum);
             }
         }
         return counts;
+    }
+
+    /**
+     * Every given process must have received a token update in the window. After a failover this
+     * says that the new leader supplies the TaskManagers with tokens: they get no token from
+     * anywhere else.
+     */
+    public static List<Violation> tokensDelivered(
+            List<AuditEvent> events, Collection<String> processes, long fromMillis, long toMillis) {
+        return silent(
+                "NO_UPDATE",
+                "UPDATE",
+                "received no token update",
+                events,
+                processes,
+                fromMillis,
+                toMillis);
+    }
+
+    /**
+     * Every given process must have used the file system, with a call it accepted, in the window. A
+     * TaskManager which runs a part of the job writes its state for every checkpoint and reads it
+     * back after a failover, and it can only do so with a valid token.
+     */
+    public static List<Violation> fileSystemUsed(
+            List<AuditEvent> events, Collection<String> processes, long fromMillis, long toMillis) {
+        return silent(
+                "NO_ACCESS",
+                "ACCESS",
+                "did not use the file system",
+                events,
+                processes,
+                fromMillis,
+                toMillis);
+    }
+
+    private static List<Violation> silent(
+            String kind,
+            String eventName,
+            String what,
+            List<AuditEvent> events,
+            Collection<String> processes,
+            long fromMillis,
+            long toMillis) {
+        final List<Violation> violations = new ArrayList<>();
+        for (String process : processes) {
+            final boolean active =
+                    events.stream()
+                            .anyMatch(
+                                    e ->
+                                            e.is(eventName)
+                                                    && e.process().equals(process)
+                                                    && e.millis() >= fromMillis
+                                                    && e.millis() <= toMillis);
+            if (!active) {
+                violations.add(
+                        new Violation(
+                                kind,
+                                process,
+                                fromMillis,
+                                what
+                                        + " in the "
+                                        + Duration.ofMillis(toMillis - fromMillis).toSeconds()
+                                        + "s from the start of the failover until the end of the"
+                                        + " settle time"));
+            }
+        }
+        return violations;
     }
 }

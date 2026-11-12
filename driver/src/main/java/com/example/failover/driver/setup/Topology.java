@@ -71,7 +71,9 @@ public final class Topology {
         yaml.append("taskmanager.memory.process.size: ")
                 .append(config.taskManagerMemory())
                 .append('\n');
-        yaml.append("taskmanager.numberOfTaskSlots: 2\n");
+        yaml.append("taskmanager.numberOfTaskSlots: ")
+                .append(RunConfig.SLOTS_PER_TASK_MANAGER)
+                .append('\n');
         yaml.append("parallelism.default: 1\n");
 
         yaml.append("high-availability.type: zookeeper\n");
@@ -85,6 +87,9 @@ public final class Topology {
 
         yaml.append("state.checkpoints.dir: tokenfs:///data/checkpoints\n");
         yaml.append("execution.checkpointing.interval: 10 s\n");
+        // Small state would be inlined into the metadata file of the JobManager, so that the
+        // TaskManagers would not touch the file system at all.
+        yaml.append("execution.checkpointing.data-inline-threshold: 0 b\n");
 
         yaml.append("security.delegation.tokens.enabled: true\n");
         yaml.append("security.delegation.tokens.renewal.time-ratio: ")

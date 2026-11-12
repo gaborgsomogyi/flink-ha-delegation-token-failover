@@ -53,6 +53,18 @@ class TopologyTest {
     }
 
     @Test
+    void theStateOfEveryCheckpointIsWrittenToFilesSoThatTaskManagersUseTheFileSystem()
+            throws IOException {
+        final String yaml = Topology.flinkConfig(config(), jobManager("jm1"), Map.of());
+
+        assertThat(yaml.lines())
+                .contains(
+                        "state.checkpoints.dir: tokenfs:///data/checkpoints",
+                        "execution.checkpointing.data-inline-threshold: 0 b",
+                        "taskmanager.numberOfTaskSlots: " + RunConfig.SLOTS_PER_TASK_MANAGER);
+    }
+
+    @Test
     void theEnvOptionsOfTheDistributionEndUpInTheConfig() throws IOException {
         final String yaml =
                 Topology.flinkConfig(

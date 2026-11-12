@@ -61,10 +61,48 @@ class RunConfigTest {
         assertThat(config.renewalPeriod()).isEqualTo(Duration.ofSeconds(15));
         assertThat(config.standbyAge()).isEqualTo(Duration.ofSeconds(70));
         assertThat(config.failoverInterval()).isEqualTo(Duration.ofSeconds(90));
-        assertThat(config.settle()).isEqualTo(Duration.ofSeconds(15));
+        assertThat(config.settle()).isEqualTo(Duration.ofSeconds(45));
+        assertThat(config.parallelism()).isEqualTo(4);
+        assertThat(config.dropTokensOf()).isEmpty();
         assertThat(config.duration()).isEqualTo(Duration.ofMinutes(10));
         assertThat(config.keep()).isFalse();
         assertThat(config.restPortBase()).isEqualTo(18081);
+    }
+
+    @Test
+    void theSettleTimeIsLongerThanATokenLivesUnlessItIsGiven() {
+        // the token lifetime plus one renewal period, so that a TaskManager which does not get
+        // tokens from the new leader is seen with an expired token
+        assertThat(parse("--token-lifetime", "1m").settle()).isEqualTo(Duration.ofSeconds(90));
+        assertThat(parse("--token-lifetime", "40s", "--renewal-ratio", "0.25").settle())
+                .isEqualTo(Duration.ofSeconds(50));
+        assertThat(parse("--settle", "5s").settle()).isEqualTo(Duration.ofSeconds(5));
+    }
+
+    @Test
+    void theJobFillsEverySlotSoThatEveryTaskManagerRunsAPartOfIt() {
+        assertThat(parse("--task-managers", "3").parallelism())
+                .isEqualTo(3 * RunConfig.SLOTS_PER_TASK_MANAGER);
+        assertThat(parse("--parallelism", "1").parallelism()).isEqualTo(1);
+    }
+
+    @Test
+    void aProcessCanBeToldToDropItsTokens() {
+        assertThat(parse("--drop-tokens-of", "tm2").dropTokensOf()).isEqualTo("tm2");
+        assertThat(parse("--drop-tokens-of", "jm3").dropTokensOf()).isEqualTo("jm3");
+        assertThatThrownBy(() -> parse("--drop-tokens-of", "tm3"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unknown process: tm3, one of [jm1, jm2, jm3, tm1, tm2]");
+    }
+
+    @Test
+    void theParallelismMustFitIntoTheSlots() {
+        assertThatThrownBy(() -> parse("--parallelism", "0"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("The parallelism must be between 1 and 4, the number of slots");
+        assertThatThrownBy(() -> parse("--parallelism", "5"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("The parallelism must be between 1 and 4, the number of slots");
     }
 
     @Test

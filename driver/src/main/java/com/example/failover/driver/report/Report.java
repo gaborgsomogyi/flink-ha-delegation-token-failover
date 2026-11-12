@@ -34,7 +34,8 @@ public final class Report {
             List<IterationResult> iterations,
             List<Violation> violations,
             List<String> evidence,
-            Map<String, Long> updatesPerProcess) {
+            Map<String, Long> updatesPerProcess,
+            Map<String, Long> accessesPerProcess) {
         final String eol = System.lineSeparator();
         final StringBuilder text = new StringBuilder();
         text.append("== delegation token failover run ==").append(eol);
@@ -54,6 +55,13 @@ public final class Report {
                 .append(config.renewalPeriod().toSeconds())
                 .append("s)")
                 .append(eol);
+        if (!config.dropTokensOf().isEmpty()) {
+            text.append("fault injected: ")
+                    .append(config.dropTokensOf())
+                    .append(" drops every token update from the start of each failover, the run")
+                    .append(" is expected to FAIL")
+                    .append(eol);
+        }
         text.append("run directory:  ").append(workspace.runDirectory()).append(eol);
         text.append(eol);
 
@@ -78,6 +86,9 @@ public final class Report {
         text.append(eol);
 
         text.append("token updates received per process: ").append(updatesPerProcess).append(eol);
+        text.append("file system calls accepted per process: ")
+                .append(accessesPerProcess)
+                .append(eol);
         text.append(eol);
 
         if (violations.isEmpty()) {

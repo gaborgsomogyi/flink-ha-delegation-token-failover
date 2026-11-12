@@ -329,4 +329,107 @@ class ChecksTest {
         assertThat(Checks.updatesPerProcess(events))
                 .containsExactly(entry("jm1", 3L), entry("tm1", 2L));
     }
+
+    // ------------------------------------------------------------------------------------------
+    // task managers after a failover
+    // ------------------------------------------------------------------------------------------
+
+    private static AuditEvent access(long millis, String process) {
+        return event(
+                millis,
+                process,
+                "ACCESS",
+                "op",
+                "create",
+                "path",
+                "tokenfs:/data/checkpoints/chk-1/f",
+                "token",
+                process + "-1");
+    }
+
+    @Test
+    void accessesPerProcessCountsOnlyAcceptedCalls() {
+        final List<AuditEvent> events =
+                List.of(
+                        access(1_000, "tm1"),
+                        access(2_000, "tm1"),
+                        access(3_000, "tm2"),
+                        event(4_000, "tm2", "VIOLATION", "op", "create"),
+                        event(5_000, "tm2", "UPDATE", "token", "tm2-2"));
+
+        assertThat(Checks.accessesPerProcess(events))
+                .containsExactly(entry("tm1", 2L), entry("tm2", 1L));
+    }
+
+    @Test
+    void aTaskManagerWhichGotATokenAndUsedTheFileSystemInTheWindowIsFine() {
+        final List<AuditEvent> events =
+                List.of(
+                        event(15_000, "tm1", "UPDATE", "token", "tm1-2"),
+                        event(16_000, "tm2", "UPDATE", "token", "tm2-2"),
+                        access(17_000, "tm1"),
+                        access(18_000, "tm2"));
+        final List<String> taskManagers = List.of("tm1", "tm2");
+
+        assertThat(Checks.tokensDelivered(events, taskManagers, 10_000, 20_000)).isEmpty();
+        assertThat(Checks.fileSystemUsed(events, taskManagers, 10_000, 20_000)).isEmpty();
+    }
+
+    @Test
+    void aTaskManagerWithoutATokenUpdateInTheWindowIsReported() {
+        final List<AuditEvent> events =
+                List.of(
+                        event(15_000, "tm1", "UPDATE", "token", "tm1-2"),
+                        // too early, before the failover started
+                        event(5_000, "tm2", "UPDATE", "token", "tm2-1"),
+                        // too late, after the settle time
+                        event(25_000, "tm2", "UPDATE", "token", "tm2-3"));
+
+        assertThat(Checks.tokensDelivered(events, List.of("tm1", "tm2"), 10_000, 20_000))
+                .containsExactly(
+                        new Violation(
+                                "NO_UPDATE",
+                                "tm2",
+                                10_000,
+                                "received no token update in the 10s from the start of the"
+                                        + " failover until the end of the settle time"));
+    }
+
+    @Test
+    void aTaskManagerWhichDidNotUseTheFileSystemInTheWindowIsReported() {
+        final List<AuditEvent> events =
+                List.of(
+                        access(15_000, "tm1"),
+                        // a rejected call is no use of the file system
+                        event(16_000, "tm2", "VIOLATION", "op", "create", "reason", "expired"),
+                        // the other kinds of events do not count either
+                        event(17_000, "tm2", "UPDATE", "token", "tm2-2"),
+                        // somebody else used it
+                        access(18_000, "jm1"));
+
+        assertThat(Checks.fileSystemUsed(events, List.of("tm1", "tm2"), 10_000, 20_000))
+                .containsExactly(
+                        new Violation(
+                                "NO_ACCESS",
+                                "tm2",
+                                10_000,
+                                "did not use the file system in the 10s from the start of the"
+                                        + " failover until the end of the settle time"));
+    }
+
+    @Test
+    void theWindowIncludesItsBoundaries() {
+        final List<AuditEvent> events = List.of(access(10_000, "tm1"), access(20_000, "tm2"));
+
+        assertThat(Checks.fileSystemUsed(events, List.of("tm1", "tm2"), 10_000, 20_000)).isEmpty();
+        assertThat(Checks.fileSystemUsed(events, List.of("tm1", "tm2"), 10_001, 19_999))
+                .extracting(Violation::process)
+                .containsExactly("tm1", "tm2");
+    }
+
+    @Test
+    void noProcessesMeansNothingToReport() {
+        assertThat(Checks.fileSystemUsed(List.of(), List.of(), 0, 10_000)).isEmpty();
+        assertThat(Checks.tokensDelivered(List.of(), List.of(), 0, 10_000)).isEmpty();
+    }
 }
