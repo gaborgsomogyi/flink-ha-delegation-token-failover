@@ -14,6 +14,10 @@ limitations under the License.
 
 # flink-ha-delegation-token-failover
 
+<p align="center">
+  <img src="docs/overview.svg" width="100%" alt="Overview of the test. 1: a real Flink HA cluster in Docker with ZooKeeper, a leader and two standby JobManagers, and a shared storage behind tokenfs:// which rejects expired tokens. 2: tokens live 30 seconds, the leader renews its token every 15 seconds, a standby of today's Flink never does and holds an expired token. 3: the leader is killed; today the new leader reads the storage with an expired token, the call is rejected and the JobManager dies, with the fix the token is fresh and the job recovers. The driver then checks for stale tokens, rejected calls, fatal errors, unexpected exits, renewal cadence and timeouts, and exits with 0 (passed) or 1 (failed).">
+</p>
+
 An endurance and regression test for the delegation token handling of Apache Flink in a
 high-availability setup. It starts a real cluster in Docker (ZooKeeper, several JobManagers,
 TaskManagers), keeps mock tokens expiring and being renewed, kills the leader JobManager over and
@@ -24,28 +28,22 @@ a leader election, and tokens that really expire:
 
 * A standby JobManager never renews its own delegation tokens, so after one token lifetime it
   holds an expired token.
-* The new leader then reads the shared HA storage with that expired token. The access is rejected,
-  the JobManager dies with a fatal error, and with every standby aged the same way the next
-  candidate dies too.
+* The new leader then reads the shared HA storage. If its own token is still expired at that
+  moment, the access is rejected and the JobManager dies with a fatal error. With every standby
+  aged the same way, the next candidate can die too, until no JobManager is left.
 
 ## What it does
 
-```
-            ZooKeeper
-               |
-   +-----------+------------+          shared directory /data  (scheme tokenfs://)
-   |           |            |                 high-availability.storageDir
-  jm1         jm2          jm3                state.checkpoints.dir
- leader      standby      standby
-   |
-  tm1, tm2  <- the job of the leader runs here
-```
+The picture above is the whole story: start the cluster, let the tokens expire, kill the leader,
+and see whether the next JobManager still has a valid token. In detail:
 
 * `plugin/` is a Flink plugin with a mock token provider, a mock token receiver and a file system
   for the scheme `tokenfs://`. The tokens expire after a configurable lifetime. `tokenfs` is a
   local file system which rejects every call while the token held by its process is missing or
   expired, the way S3 rejects expired session credentials. The receiver keeps the token in a
-  static field, like the S3 receivers of Flink do, and every request reads it from there.
+  static field, like the S3 receivers of Flink do, and every request reads it from there. The HA
+  storage (`high-availability.storageDir`) and the checkpoints (`state.checkpoints.dir`) are on
+  `tokenfs://`, in a directory which all containers share.
 * `driver/` starts the containers with Docker Compose from a Flink distribution that you built,
   submits a job with state, runs a scenario and checks the facts afterwards. It exits with 0 if
   every fact held and with 1 otherwise.

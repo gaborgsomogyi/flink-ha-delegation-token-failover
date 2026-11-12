@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 820" width="1200" height="820" role="img" aria-labelledby="t d">
+<title id="t">What the failover test does</title>
+<desc id="d">A real Flink high-availability cluster runs in Docker with ZooKeeper, three JobManagers, two TaskManagers and a shared storage which rejects expired tokens. Tokens expire after 30 seconds. A leader renews its token every 15 seconds, a standby JobManager of an unfixed Flink never does. The test kills the leader. Without the fix the new leader reads the storage with an expired token, the call is rejected and the JobManager dies. With the fix its token is fresh and the job recovers. The driver asserts on stale tokens, rejected calls, fatal errors, unexpected exits, renewal cadence and timeouts.</desc>
+<defs><linearGradient id="hero" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#0A5BD3"/><stop offset="1" stop-color="#7A3FD1"/></linearGradient><filter id="shadow" x="-4%" y="-3%" width="108%" height="109%"><feGaussianBlur in="SourceAlpha" stdDeviation="5"/><feOffset dy="4" result="b"/><feComponentTransfer><feFuncA type="linear" slope="0.16"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter><marker id="head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#8C959F"/></marker><marker id="headBlue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#0969DA"/></marker></defs>
+<rect width="1200" height="820" fill="#FFFFFF"/>
+<rect width="1200" height="132" fill="url(#hero)"/>
+<text x="40" y="36" font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" font-weight="normal" fill="#CFE0FF" text-anchor="start" letter-spacing="0.5">flink-ha-delegation-token-failover</text>
+<text x="600" y="82" font-family="Helvetica, Arial, sans-serif" font-size="40" font-weight="700" fill="#FFFFFF" text-anchor="middle" >Does the next JobManager still have a valid token?</text>
+<text x="600" y="114" font-family="Helvetica, Arial, sans-serif" font-size="19" font-weight="normal" fill="#E3EEFF" text-anchor="middle" >A real Flink HA cluster in Docker, tokens that really expire, and a leader that gets killed.</text>
+<g transform="translate(40,158)">
+<rect width="350" height="452" rx="18" fill="#F6F8FA" stroke="#D0D7DE" stroke-width="1.5" filter="url(#shadow)"/>
+<circle cx="40" cy="42" r="20" fill="#0969DA"/>
+<text x="40" y="49.5" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF" text-anchor="middle" >1</text>
+<text x="72" y="50" font-family="Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#1F2328" text-anchor="start" >A real HA cluster</text>
+<rect x="115" y="76" width="120" height="32" rx="9" fill="#EAEEF2" stroke="#8C959F" stroke-width="1.5"/>
+<text x="175" y="97" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="normal" fill="#1F2328" text-anchor="middle" >ZooKeeper</text>
+<line x1="175" y1="108" x2="66" y2="128" stroke="#8C959F" stroke-width="1.5" stroke-dasharray="4 3"/>
+<line x1="175" y1="108" x2="175" y2="144" stroke="#8C959F" stroke-width="1.5" stroke-dasharray="4 3"/>
+<line x1="175" y1="108" x2="284" y2="144" stroke="#8C959F" stroke-width="1.5" stroke-dasharray="4 3"/>
+<rect x="24.0" y="144" width="84" height="76" rx="12" fill="#DDF4FF" stroke="#0969DA" stroke-width="2.5"/>
+<path d="M52 144 L52 130 L59 137 L66 128 L73 137 L80 130 L80 144 Z" fill="#F2C94C" stroke="#9A6700" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="66" y="168" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#1F2328" text-anchor="middle" >jm1</text>
+<text x="66" y="185" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#0969DA" text-anchor="middle" letter-spacing="1">LEADER</text>
+<rect x="133.0" y="144" width="84" height="76" rx="12" fill="#EAEEF2" stroke="#8C959F" stroke-width="2"/>
+<text x="175" y="168" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#1F2328" text-anchor="middle" >jm2</text>
+<text x="175" y="185" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#57606A" text-anchor="middle" >standby</text>
+<rect x="242.0" y="144" width="84" height="76" rx="12" fill="#EAEEF2" stroke="#8C959F" stroke-width="2"/>
+<text x="284" y="168" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#1F2328" text-anchor="middle" >jm3</text>
+<text x="284" y="185" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#57606A" text-anchor="middle" >standby</text>
+<rect x="37.0" y="196" width="58" height="17" rx="8.5" fill="#DAFBE1" stroke="#4AC26B" stroke-width="1.2"/>
+<text x="66" y="208.5" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1A7F37" text-anchor="middle" >token</text>
+<rect x="146.0" y="196" width="58" height="17" rx="8.5" fill="#DAFBE1" stroke="#4AC26B" stroke-width="1.2"/>
+<text x="175" y="208.5" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1A7F37" text-anchor="middle" >token</text>
+<rect x="255.0" y="196" width="58" height="17" rx="8.5" fill="#DAFBE1" stroke="#4AC26B" stroke-width="1.2"/>
+<text x="284" y="208.5" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1A7F37" text-anchor="middle" >token</text>
+<line x1="66" y1="220" x2="66" y2="290" stroke="#8C959F" stroke-width="1.8" marker-start="url(#head)" marker-end="url(#head)"/>
+<line x1="175" y1="220" x2="175" y2="290" stroke="#8C959F" stroke-width="1.8" marker-start="url(#head)" marker-end="url(#head)"/>
+<line x1="284" y1="220" x2="284" y2="290" stroke="#8C959F" stroke-width="1.8" marker-start="url(#head)" marker-end="url(#head)"/>
+<text x="183" y="262" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#57606A" text-anchor="start" font-style="italic">reads and writes</text>
+<path d="M24 306 V350 A151 13 0 0 0 326 350 V306" fill="#FFF8C5" stroke="#D4A72C" stroke-width="2"/><ellipse cx="175" cy="306" rx="151" ry="13" fill="#FFF1A8" stroke="#D4A72C" stroke-width="2"/>
+<path d="M37 326 v-5 a5 5 0 0 1 10 0 v5" fill="none" stroke="#9A6700" stroke-width="2.2"/><rect x="34" y="326" width="16" height="12" rx="2.5" fill="#9A6700"/>
+<text x="188" y="337" font-family="Helvetica, Arial, sans-serif" font-size="15" fill="#1F2328" text-anchor="middle"><tspan font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-weight="700">tokenfs://</tspan> shared HA storage</text>
+<text x="24" y="396" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="normal" fill="#57606A" text-anchor="start" >3 JobManagers and 2 TaskManagers run</text>
+<text x="24" y="418" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="normal" fill="#57606A" text-anchor="start" >a stateful job. The storage rejects</text>
+<text x="24" y="440" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="normal" fill="#57606A" text-anchor="start" >every call that has an expired token.</text>
+</g>
+<g transform="translate(425,158)">
+<rect width="350" height="452" rx="18" fill="#F6F8FA" stroke="#D0D7DE" stroke-width="1.5" filter="url(#shadow)"/>
+<circle cx="40" cy="42" r="20" fill="#BF8700"/>
+<text x="40" y="49.5" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF" text-anchor="middle" >2</text>
+<text x="72" y="50" font-family="Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#1F2328" text-anchor="start" >Tokens expire</text>
+<text x="258.8888888888889" y="86" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#CF222E" text-anchor="middle" >leader killed</text>
+<line x1="258.8888888888889" y1="112" x2="258.8888888888889" y2="334" stroke="#CF222E" stroke-width="2" stroke-dasharray="5 4"/>
+<circle cx="258.8888888888889" cy="100" r="10" fill="#CF222E"/>
+<path d="M254.8888888888889 96 L262.8888888888889 104 M262.8888888888889 96 L254.8888888888889 104" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/>
+<text x="24" y="132" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#0969DA" text-anchor="start" >leader</text>
+<rect x="25.00" y="140" width="48.33" height="18" rx="4" fill="#2DA44E"/>
+<rect x="75.33" y="140" width="48.33" height="18" rx="4" fill="#2DA44E"/>
+<rect x="125.67" y="140" width="48.33" height="18" rx="4" fill="#2DA44E"/>
+<rect x="176.00" y="140" width="48.33" height="18" rx="4" fill="#2DA44E"/>
+<rect x="226.33" y="140" width="48.33" height="18" rx="4" fill="#2DA44E"/>
+<rect x="276.67" y="140" width="48.33" height="18" rx="4" fill="#2DA44E"/>
+<text x="24" y="176" font-family="Helvetica, Arial, sans-serif" font-size="13.5" font-weight="normal" fill="#57606A" text-anchor="start" >a new token every 15 s</text>
+<text x="24" y="204" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#CF222E" text-anchor="start" >standby, today</text>
+<rect x="25.00" y="212" width="98.67" height="18" rx="4" fill="#2DA44E"/>
+<rect x="125.67" y="212" width="200.33" height="18" rx="4" fill="#CF222E"/>
+<text x="225.33333333333334" y="225.5" font-family="Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#FFFFFF" text-anchor="middle" >expired</text>
+<text x="24" y="248" font-family="Helvetica, Arial, sans-serif" font-size="13.5" font-weight="normal" fill="#57606A" text-anchor="start" >one token, never renewed</text>
+<text x="24" y="276" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#1A7F37" text-anchor="start" >standby, with the fix</text>
+<rect x="25.00" y="284" width="48.33" height="18" rx="4" fill="#2DA44E"/>
+<rect x="75.33" y="284" width="48.33" height="18" rx="4" fill="#2DA44E"/>
+<rect x="125.67" y="284" width="48.33" height="18" rx="4" fill="#2DA44E"/>
+<rect x="176.00" y="284" width="48.33" height="18" rx="4" fill="#2DA44E"/>
+<rect x="226.33" y="284" width="48.33" height="18" rx="4" fill="#2DA44E"/>
+<rect x="276.67" y="284" width="48.33" height="18" rx="4" fill="#2DA44E"/>
+<text x="24" y="320" font-family="Helvetica, Arial, sans-serif" font-size="13.5" font-weight="normal" fill="#57606A" text-anchor="start" >renews like the leader</text>
+<line x1="24" y1="338" x2="326" y2="338" stroke="#8C959F" stroke-width="1.5"/>
+<line x1="24.0" y1="333" x2="24.0" y2="343" stroke="#8C959F" stroke-width="1.5"/>
+<text x="24.0" y="360" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#57606A" text-anchor="middle" >0 s</text>
+<line x1="124.66666666666667" y1="333" x2="124.66666666666667" y2="343" stroke="#8C959F" stroke-width="1.5"/>
+<text x="124.66666666666667" y="360" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#57606A" text-anchor="middle" >30 s</text>
+<line x1="225.33333333333334" y1="333" x2="225.33333333333334" y2="343" stroke="#8C959F" stroke-width="1.5"/>
+<text x="225.33333333333334" y="360" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#57606A" text-anchor="middle" >60 s</text>
+<line x1="326.0" y1="333" x2="326.0" y2="343" stroke="#8C959F" stroke-width="1.5"/>
+<text x="326.0" y="360" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#57606A" text-anchor="middle" >90 s</text>
+<text x="24" y="396" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="normal" fill="#57606A" text-anchor="start" >Every token lives 30 s. Each JobManager</text>
+<text x="24" y="418" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="normal" fill="#57606A" text-anchor="start" >should renew its own every 15 s.</text>
+<text x="24" y="440" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="normal" fill="#57606A" text-anchor="start" >A standby never does.</text>
+</g>
+<g transform="translate(810,158)">
+<rect width="350" height="452" rx="18" fill="#F6F8FA" stroke="#D0D7DE" stroke-width="1.5" filter="url(#shadow)"/>
+<circle cx="40" cy="42" r="20" fill="#CF222E"/>
+<text x="40" y="49.5" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF" text-anchor="middle" >3</text>
+<text x="72" y="50" font-family="Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#1F2328" text-anchor="start" >Kill the leader</text>
+<rect x="24.0" y="84" width="84" height="76" rx="12" fill="#FFFFFF" stroke="#8C959F" stroke-width="2" stroke-dasharray="5 4"/>
+<path d="M34 94 L98 150 M98 94 L34 150" stroke="#CF222E" stroke-width="5" stroke-linecap="round"/>
+<rect x="133.0" y="84" width="84" height="76" rx="12" fill="#DDF4FF" stroke="#0969DA" stroke-width="2.5"/>
+<path d="M161 84 L161 70 L168 77 L175 68 L182 77 L189 70 L189 84 Z" fill="#F2C94C" stroke="#9A6700" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="175" y="108" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#1F2328" text-anchor="middle" >jm2</text>
+<text x="175" y="125" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#0969DA" text-anchor="middle" letter-spacing="1"></text>
+<rect x="145.0" y="128" width="60" height="17" rx="8.5" fill="#FFF8C5" stroke="#D4A72C" stroke-width="1.2"/>
+<text x="175" y="140.5" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#9A6700" text-anchor="middle" >token ?</text>
+<rect x="242.0" y="84" width="84" height="76" rx="12" fill="#EAEEF2" stroke="#8C959F" stroke-width="2"/>
+<text x="284" y="108" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#1F2328" text-anchor="middle" >jm3</text>
+<text x="284" y="125" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#57606A" text-anchor="middle" >standby</text>
+<line x1="111" y1="126" x2="130" y2="126" stroke="#0969DA" stroke-width="2.5" marker-end="url(#headBlue)"/>
+<text x="66" y="180" font-family="Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#CF222E" text-anchor="middle" >jm1 killed</text>
+<text x="175" y="180" font-family="Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0969DA" text-anchor="middle" >jm2 new leader</text>
+<text x="175" y="206" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="normal" fill="#57606A" text-anchor="middle" >It reads the HA storage with its own token:</text>
+<rect x="24" y="218" width="302" height="78" rx="14" fill="#FFEBE9" stroke="#FF8182" stroke-width="2"/>
+<rect x="36" y="228" width="64" height="22" rx="11" fill="#CF222E"/>
+<text x="68" y="243.5" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle" letter-spacing="1">TODAY</text>
+<rect x="111.0" y="230" width="114" height="17" rx="8.5" fill="#FFFFFF" stroke="#CF222E" stroke-width="1.2"/>
+<text x="168" y="242.5" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#CF222E" text-anchor="middle" >token still expired</text>
+<text x="36" y="273" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#CF222E" text-anchor="start" >Storage rejects the call.</text>
+<text x="36" y="289" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="normal" fill="#1F2328" text-anchor="start" >jm2 dies with a fatal error.</text>
+<rect x="24" y="306" width="302" height="78" rx="14" fill="#DAFBE1" stroke="#4AC26B" stroke-width="2"/>
+<rect x="36" y="316" width="100" height="22" rx="11" fill="#1A7F37"/>
+<text x="86" y="331.5" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle" letter-spacing="1">WITH THE FIX</text>
+<rect x="145.0" y="318" width="82" height="17" rx="8.5" fill="#FFFFFF" stroke="#4AC26B" stroke-width="1.2"/>
+<text x="186" y="330.5" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1A7F37" text-anchor="middle" >token fresh</text>
+<text x="36" y="361" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#1A7F37" text-anchor="start" >Storage accepts the call.</text>
+<text x="36" y="377" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="normal" fill="#1F2328" text-anchor="start" >Job recovered, checkpoints go on.</text>
+<text x="24" y="410" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="normal" fill="#57606A" text-anchor="start" >The driver kills the leader after every</text>
+<text x="24" y="432" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="normal" fill="#57606A" text-anchor="start" >standby has outlived two token lifetimes.</text>
+</g>
+<path d="M399.5 372 L415.5 384 L399.5 396 Z" fill="#0969DA"/>
+<path d="M784.5 372 L800.5 384 L784.5 396 Z" fill="#0969DA"/>
+<text x="40" y="654" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#1F2328" text-anchor="start" >Then the driver checks recorded facts, nothing is assumed</text>
+<text x="1160" y="654" font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" font-weight="normal" fill="#57606A" text-anchor="end" >scenarios: aged-standby / zk-blip / rolling</text>
+<clipPath id="chip0"><rect x="40" y="674" width="175" height="76" rx="12"/></clipPath>
+<rect x="40" y="674" width="175" height="76" rx="12" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="40" y="674" width="8" height="76" fill="#D4A72C" clip-path="url(#chip0)"/>
+<text x="62" y="701" font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="14.5" font-weight="700" fill="#1F2328" text-anchor="start" >STALE</text>
+<text x="62" y="721" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="normal" fill="#57606A" text-anchor="start" >a process holds</text>
+<text x="62" y="738" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="normal" fill="#57606A" text-anchor="start" >an expired token</text>
+<clipPath id="chip1"><rect x="229" y="674" width="175" height="76" rx="12"/></clipPath>
+<rect x="229" y="674" width="175" height="76" rx="12" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="229" y="674" width="8" height="76" fill="#FF8182" clip-path="url(#chip1)"/>
+<text x="251" y="701" font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="14.5" font-weight="700" fill="#1F2328" text-anchor="start" >VIOLATION</text>
+<text x="251" y="721" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="normal" fill="#57606A" text-anchor="start" >the storage rejected</text>
+<text x="251" y="738" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="normal" fill="#57606A" text-anchor="start" >a call</text>
+<clipPath id="chip2"><rect x="418" y="674" width="175" height="76" rx="12"/></clipPath>
+<rect x="418" y="674" width="175" height="76" rx="12" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="418" y="674" width="8" height="76" fill="#CF222E" clip-path="url(#chip2)"/>
+<text x="440" y="701" font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="14.5" font-weight="700" fill="#1F2328" text-anchor="start" >FATAL</text>
+<text x="440" y="721" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="normal" fill="#57606A" text-anchor="start" >a Flink process logged</text>
+<text x="440" y="738" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="normal" fill="#57606A" text-anchor="start" >a fatal error</text>
+<clipPath id="chip3"><rect x="607" y="674" width="175" height="76" rx="12"/></clipPath>
+<rect x="607" y="674" width="175" height="76" rx="12" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="607" y="674" width="8" height="76" fill="#FF8182" clip-path="url(#chip3)"/>
+<text x="629" y="701" font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="14.5" font-weight="700" fill="#1F2328" text-anchor="start" >PROCESS_EXIT</text>
+<text x="629" y="721" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="normal" fill="#57606A" text-anchor="start" >a process died</text>
+<text x="629" y="738" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="normal" fill="#57606A" text-anchor="start" >on its own</text>
+<clipPath id="chip4"><rect x="796" y="674" width="175" height="76" rx="12"/></clipPath>
+<rect x="796" y="674" width="175" height="76" rx="12" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="796" y="674" width="8" height="76" fill="#D4A72C" clip-path="url(#chip4)"/>
+<text x="818" y="701" font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="14.5" font-weight="700" fill="#1F2328" text-anchor="start" >UPDATE_CADENCE</text>
+<text x="818" y="721" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="normal" fill="#57606A" text-anchor="start" >too few or too many</text>
+<text x="818" y="738" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="normal" fill="#57606A" text-anchor="start" >token renewals</text>
+<clipPath id="chip5"><rect x="985" y="674" width="175" height="76" rx="12"/></clipPath>
+<rect x="985" y="674" width="175" height="76" rx="12" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="985" y="674" width="8" height="76" fill="#8C959F" clip-path="url(#chip5)"/>
+<text x="1007" y="701" font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="14.5" font-weight="700" fill="#1F2328" text-anchor="start" >TIMEOUT</text>
+<text x="1007" y="721" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="normal" fill="#57606A" text-anchor="start" >no leader, job or</text>
+<text x="1007" y="738" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="normal" fill="#57606A" text-anchor="start" >checkpoint in time</text>
+<rect x="398" y="772" width="190" height="34" rx="17" fill="#1A7F37"/>
+<text x="493" y="794" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle" >PASSED  (exit 0)</text>
+<rect x="612" y="772" width="190" height="34" rx="17" fill="#CF222E"/>
+<text x="707" y="794" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle" >FAILED  (exit 1)</text>
+</svg>
