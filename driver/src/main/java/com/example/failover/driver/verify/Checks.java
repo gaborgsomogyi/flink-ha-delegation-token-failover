@@ -21,6 +21,7 @@ import com.example.failover.driver.evidence.LogLine;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -131,7 +132,7 @@ public final class Checks {
                 continue;
             }
             final long end = Math.min(incarnation.endMillis(), nowMillis);
-            final long updates =
+            final List<AuditEvent> received =
                     events.stream()
                             .filter(e -> e.is("UPDATE"))
                             .filter(e -> e.process().equals(incarnation.process()))
@@ -139,9 +140,14 @@ public final class Checks {
                                     e ->
                                             e.millis() >= incarnation.startMillis()
                                                     && e.millis() <= end)
-                            .count();
+                            .sorted(Comparator.comparingLong(AuditEvent::millis))
+                            .toList();
+            final long updates = received.size();
             final long minimum = length / (2 * periodMillis);
-            final long maximum = (length + periodMillis - 1) / periodMillis + 3;
+            // A TaskManager gets the newest tokens of a new leader when it registers, on top of the
+            // renewals, so every change of the leader may bring one more update.
+            final long maximum =
+                    (length + periodMillis - 1) / periodMillis + 3 + changesOfIssuer(received);
             if (updates < minimum || updates > maximum) {
                 violations.add(
                         new Violation(
@@ -162,6 +168,22 @@ public final class Checks {
             }
         }
         return violations;
+    }
+
+    /** The tokens are named after the process which issued them, like jm2-4. */
+    private static long changesOfIssuer(List<AuditEvent> updates) {
+        long changes = 0;
+        String previous = null;
+        for (AuditEvent update : updates) {
+            final String token = update.detail("token");
+            final int separator = token.lastIndexOf('-');
+            final String issuer = separator > 0 ? token.substring(0, separator) : token;
+            if (previous != null && !previous.equals(issuer)) {
+                changes++;
+            }
+            previous = issuer;
+        }
+        return changes;
     }
 
     /** Number of UPDATE events per process, for the report. */

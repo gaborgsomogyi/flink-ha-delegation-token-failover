@@ -58,7 +58,7 @@ files and on the logs, it never assumes that something happened:
 | `VIOLATION` | `tokenfs` rejected a call because the token was missing or expired |
 | `FATAL` | a Flink process logged a fatal error (with its root cause) |
 | `PROCESS_EXIT` | a process exited that the driver did not kill |
-| `UPDATE_CADENCE` | a process received far fewer or far more token updates than its renewal period says |
+| `UPDATE_CADENCE` | a process received far fewer or far more token updates than its renewal period says (a TaskManager gets one more update at every change of the leader) |
 | `NO_UPDATE` | a TaskManager received no token update between the failover and the end of the settle time |
 | `NO_ACCESS` | a TaskManager did not use the file system, with a call it accepted, in the same time |
 | `TIMEOUT` | no leader, the job not running, or no new checkpoint within the time limit |

@@ -298,6 +298,39 @@ class ChecksTest {
     }
 
     @Test
+    void aTaskManagerMayGetOneExtraUpdateForEveryChangeOfTheLeader() {
+        // the leader changes four times, a new leader hands over its newest token when the
+        // TaskManager registers, which is one more update than the renewals alone
+        final List<AuditEvent> events = new ArrayList<>();
+        for (int i = 0; i < 25; i++) {
+            final String leader = (i / 5) % 2 == 0 ? "jm1" : "jm2";
+            events.add(event(i * 12_000L, "tm1", "UPDATE", "token", leader + "-" + i));
+        }
+        final List<Incarnation> incarnations =
+                List.of(new Incarnation("tm1", 0, Incarnation.OPEN, false));
+
+        assertThat(Checks.updateCadence(events, incarnations, PERIOD, 300_000)).isEmpty();
+    }
+
+    @Test
+    void aTaskManagerWhichGetsTooManyUpdatesFromOneLeaderIsReported() {
+        final List<AuditEvent> events = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            events.add(event(i * 7_500L, "tm1", "UPDATE", "token", "jm1-" + i));
+        }
+        final List<Incarnation> incarnations =
+                List.of(new Incarnation("tm1", 0, Incarnation.OPEN, false));
+
+        assertThat(Checks.updateCadence(events, incarnations, PERIOD, 300_000))
+                .extracting(Violation::kind, Violation::message)
+                .containsExactly(
+                        tuple(
+                                "UPDATE_CADENCE",
+                                "received 40 token update(s) in 300s although 10 to 23 are expected"
+                                        + " for a renewal period of 15s"));
+    }
+
+    @Test
     void aShortIncarnationIsNotChecked() {
         final List<Incarnation> incarnations =
                 List.of(new Incarnation("jm1", 0, Incarnation.OPEN, false));
