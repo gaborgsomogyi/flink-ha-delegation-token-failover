@@ -1,1 +1,1 @@
-com.example.failover.plugin.MockDelegationTokenReceiver
+com.example.failover.plugin.token.MockDelegationTokenReceiver

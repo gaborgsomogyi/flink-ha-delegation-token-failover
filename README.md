@@ -152,12 +152,30 @@ RESULT: PASSED
 ## Layout
 
 ```
-plugin/   the Flink plugin: provider, receiver, tokenfs, audit, sampler
-driver/   the command line driver
-run.sh    builds if needed and starts the driver
+plugin/     the Flink plugin, loaded by every JobManager and TaskManager
+  audit       Audit: one line per event in <process>.audit
+  token       the mock token service: MockToken, provider, receiver, HeldToken, Sampler
+  fs          the tokenfs:// file system, rejects calls with a missing or expired token
+driver/     the command line driver
+  (root)      Main: parse the options, run, report, exit code
+  config      RunConfig: the options of a run
+  setup       what is generated before the containers start: processes, Flink config, compose file
+  client      Docker (the CLI) and Rest (the Flink REST API)
+  cluster     Cluster: start, kill and observe the processes; LeaderTracker: who leads
+  scenario    Scenarios (aged-standby, zk-blip, rolling) and their results
+  evidence    what the processes recorded: audit events, log entries, causes of an error
+  verify      the facts which must hold: Checks, Violation, ScenarioFailure, Incarnation
+  report      Report: the text report
+run.sh      builds if needed and starts the driver
 ```
 
-`mvn test` runs the unit tests of both modules. They need no Docker: they cover the plugin, the
+The packages depend on each other in one direction only. From the bottom: `config` and `evidence`
+depend on nothing, `setup` uses `config`, `verify` and `client` use `evidence`, `cluster` uses all of
+these, `scenario` runs on a `cluster`, `report` renders what a `scenario` and the checks found, and
+`Main` wires it together. The plugin has the same shape: `fs` uses `token`, both use `audit`.
+
+`mvn test` runs the unit tests of both modules, each in the package of the class it tests. They
+need no Docker: they cover the plugin, the
 parsing of options, the generated configuration, the REST client (against a local HTTP server), the
 parsing of logs and audit files, and every check of the driver as a function of recorded facts.
 Starting the cluster and the scenarios are only covered by running them. The code is formatted

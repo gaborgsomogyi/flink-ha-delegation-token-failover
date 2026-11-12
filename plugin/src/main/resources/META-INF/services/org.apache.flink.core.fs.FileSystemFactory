@@ -1,1 +1,1 @@
-com.example.failover.plugin.TokenCheckedFileSystemFactory
+com.example.failover.plugin.fs.TokenCheckedFileSystemFactory
